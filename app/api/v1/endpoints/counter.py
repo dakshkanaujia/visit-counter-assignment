@@ -14,7 +14,7 @@ async def record_visit(page_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/visits/{page_id}")
+@router.get("/visits/{page_id}", response_model=VisitCount)
 async def get_visits(page_id: str):
     """Get visit count for a website"""
     try:

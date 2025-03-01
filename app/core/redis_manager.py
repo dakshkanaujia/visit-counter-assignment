@@ -13,10 +13,15 @@ class RedisManager:
         redis_nodes = [node.strip() for node in settings.REDIS_NODES.split(",") if node.strip()]
         self.consistent_hash = ConsistentHash(redis_nodes, settings.VIRTUAL_NODES)
         
-        # TODO: Initialize connection pools for each Redis node
-        # 1. Create connection pools for each Redis node
-        # 2. Initialize Redis clients
-        pass
+        # Initialize connection pools for each Redis node
+        for node in redis_nodes:
+            self.connection_pools[node] = redis.ConnectionPool.from_url(
+                url=node,
+                password=settings.REDIS_PASSWORD,
+                db=settings.REDIS_DB,
+                decode_responses=True
+            )
+            self.redis_clients[node] = redis.Redis(connection_pool=self.connection_pools[node])
 
     async def get_connection(self, key: str) -> redis.Redis:
         """
@@ -28,10 +33,10 @@ class RedisManager:
         Returns:
             Redis client for the appropriate node
         """
-        # TODO: Implement getting the appropriate Redis connection
-        # 1. Use consistent hashing to determine which node should handle this key
-        # 2. Return the Redis client for that node
-        pass
+        node = self.consistent_hash.get_node(key)
+        if node not in self.redis_clients:
+            raise Exception(f"No Redis client available for node {node}")
+        return self.redis_clients[node]
 
     async def increment(self, key: str, amount: int = 1) -> int:
         """
@@ -44,11 +49,12 @@ class RedisManager:
         Returns:
             New value of the counter
         """
-        # TODO: Implement incrementing a counter
-        # 1. Get the appropriate Redis connection
-        # 2. Increment the counter
-        # 3. Handle potential failures and retries
-        return 0
+        try:
+            redis_client = await self.get_connection(key)
+            return redis_client.incrby(key, amount)
+        except Exception as e:
+            # In a production system, you might want to implement retries here
+            raise Exception(f"Failed to increment key {key}: {str(e)}")
 
     async def get(self, key: str) -> Optional[int]:
         """
@@ -60,8 +66,13 @@ class RedisManager:
         Returns:
             Value of the key or None if not found
         """
-        # TODO: Implement getting a value
-        # 1. Get the appropriate Redis connection
-        # 2. Retrieve the value
-        # 3. Handle potential failures and retries
-        return None
+        try:
+            redis_client = await self.get_connection(key)
+            value = redis_client.get(key)
+            return int(value) if value is not None else 0
+        except Exception as e:
+            # In a production system, you might want to implement retries here
+            raise Exception(f"Failed to get key {key}: {str(e)}")
+
+# Create a singleton instance
+redis_manager = RedisManager()
