@@ -22,3 +22,23 @@ async def get_visits(page_id: str):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/test-cache/{page_id}")
+async def test_cache(page_id: str):
+    """Test endpoint to check the caching mechanism"""
+    # First request - should come from Redis
+    first_result = await counter_service.get_visit_count(page_id)
+    
+    # Second request - should come from cache
+    second_result = await counter_service.get_visit_count(page_id)
+    
+    return {
+        "first_request": {
+            "visits": first_result.visits,
+            "served_via": first_result.served_via
+        },
+        "second_request": {
+            "visits": second_result.visits,
+            "served_via": second_result.served_via
+        }
+    }
